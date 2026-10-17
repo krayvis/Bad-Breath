@@ -1248,7 +1248,11 @@ function renderClean(chans, sr, labels, o) {
     if (S.play.active) { S.cursor = playPos(); stopPlayback(); return; }
     if (S.sel) { const p = isolate ? 0 : S.ctxPad; playRange(S.sel.a - p, S.sel.b + p); return; }
     const l = byId(S.selId);
-    if (l) { playLabel(l, isolate); return; }
+    if (l) {
+      // A playhead placed inside the label by a click: play from there to the end of the label.
+      if (!isolate && S.cursor != null && S.cursor > l.start + 0.002 && S.cursor < l.end) { playRange(S.cursor, l.end + S.ctxPad); return; }
+      playLabel(l, isolate); return;
+    }
     const from = S.cursor != null ? S.cursor : S.t0;
     playRange(from, S.dur);
   }
@@ -1467,8 +1471,9 @@ function renderClean(chans, sr, labels, o) {
     if (!d.moved) {
       S.sel = null; S.cursor = t;
       const hit = hitLabel(t, p.w);
-      if (hit) selectLabel(hit.id, { play: true }); else { S.selId = null; markSelected(); requestRender(); }
-      S.cursor = t;
+      // A click inside a label selects it but leaves the playhead where you clicked, so Space plays from there and S or P marks there.
+      if (hit) selectLabel(hit.id); else { S.selId = null; markSelected(); requestRender(); }
+      S.cursor = t; requestRender();
       setStatus('Playhead at ' + fmtTime(t, 3) + '. Press S or P to mark a smack or plosive here, or Space to play from here.');
     } else if (S.sel && S.sel.b - S.sel.a < 0.005) { S.sel = null; }
     updateInspect(); requestRender();
