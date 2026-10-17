@@ -312,6 +312,7 @@ select{padding:3px 4px;border:1px solid var(--line);border-radius:4px;background
   </div>
 </div>
 
+<script>window.DEMO_URL='demo/sample.mp3'; window.DEMO_NAME='sample.mp3';</script>
 <script>
 // ===== core: pure helpers, no DOM =====
 // <core>
@@ -1776,6 +1777,27 @@ function renderClean(chans, sr, labels, o) {
     setStatus('Open an audio file and a labels file to begin.');
   }
   updateCounts(); updateInspect(); requestRender();
+  // Hosted build: replace the synthetic demo with a real recording, analyzed on load. Falls back to the synthetic demo when the file can't be fetched (for example when this page is opened from disk).
+  async function loadSample(url, name) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return;
+      const ab = await r.arrayBuffer();
+      if (!S.isDemo) return;
+      const buf = await ctx().decodeAudioData(ab);
+      if (!S.isDemo) return;
+      setAudio(buf, name, true);
+      S.feat = await detectFeatures(S.mono, S.sr, () => {});
+      if (!S.isDemo) return;
+      applyDetection();
+      S.t0 = 0; S.t1 = Math.min(12, S.dur);
+      S.dirty = false;
+      setStatus('');
+      notice('This is a sample recording with the breaths, dead air and lip smacks the detector found. Press the down arrow to step through them, K to keep, D to reject. Open your own recording, then Analyze, review, and Export clean WAV.', []);
+      updateCounts(); updateInspect(); requestRender();
+    } catch (err) { /* keep the synthetic demo */ }
+  }
+  if (window.DEMO_URL) loadSample(window.DEMO_URL, window.DEMO_NAME || 'sample.mp3');
 })();
 document.getElementById('demoNoteClose').addEventListener('click', function () { document.getElementById('demoNote').hidden = true; });
 </script>
