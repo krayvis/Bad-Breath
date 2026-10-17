@@ -44,9 +44,10 @@ button,select,input{font:inherit;color:inherit}
 kbd{font-family:var(--font-mono);font-size:11px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;background:var(--panel-2);color:var(--muted)}
 .app{display:flex;flex-direction:column;gap:10px;height:100%;min-width:0}
 
-.top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px}
 .top h1{font-size:17px;font-weight:700;margin:0;letter-spacing:.01em}
-.files{display:flex;flex-wrap:wrap;gap:4px 16px;min-width:0;flex:1}
+.meta{flex:1 0 100%;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 18px;min-width:0}
+.files{display:flex;flex-wrap:wrap;gap:4px 16px;min-width:0;flex:none}
 .file{display:flex;gap:6px;min-width:0;align-items:baseline}
 .file .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 .file .v{font-family:var(--font-mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:26ch}
@@ -59,7 +60,7 @@ kbd{font-family:var(--font-mono);font-size:11px;padding:0 5px;border:1px solid v
 .btn.bad{border-color:var(--bad);color:var(--bad)}
 .btn[disabled]{opacity:.45;cursor:default}
 .chk{display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}
-.status{min-height:1.4em;font-size:13px;color:var(--muted);flex-basis:100%}
+.status{font-size:13px;color:var(--muted);flex:1 1 24ch;min-width:0}
 .status.ok{color:var(--good)} .status.err{color:var(--bad)}
 
 .notice{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
@@ -164,10 +165,6 @@ select{padding:3px 4px;border:1px solid var(--line);border-radius:4px;background
 </aside>
   <header class="top">
     <h1>Bad Breath</h1>
-    <div class="files">
-      <div class="file"><span class="k">Audio</span><span class="v" id="audioName">demo</span></div>
-      <div class="file"><span class="k">Labels</span><span class="v" id="labelsName">demo</span></div>
-    </div>
     <div class="actions">
       <button class="btn" type="button" id="btnAudio">Open audio</button>
       <button class="btn primary" type="button" id="btnAnalyze" title="Find breaths, dead air and lip smacks automatically">Analyze</button>
@@ -180,7 +177,13 @@ select{padding:3px 4px;border:1px solid var(--line);border-radius:4px;background
     </div>
     <input type="file" id="fileAudio" accept="audio/*,.wav" hidden>
     <input type="file" id="fileLabels" accept=".txt,text/plain" hidden>
-    <div class="status" id="status" role="status" aria-live="polite"></div>
+    <div class="meta">
+      <div class="files">
+        <div class="file"><span class="k">Audio</span><span class="v" id="audioName">demo</span></div>
+        <div class="file"><span class="k">Labels</span><span class="v" id="labelsName">demo</span></div>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </div>
   </header>
 
   <details class="det" id="det">
