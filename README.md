@@ -73,7 +73,7 @@ The way to improve it is reviewed recordings: save a review log (**Save review l
 
 **Terms.** Free software under the AGPL-3.0, provided "as is" with no warranty (sections 15 and 16 of the license). The tool never changes your original file; export saves a new one. Keep your originals and listen to the result before you publish it. The detection is tuned to one voice (see above), so it will make mistakes on others.
 
-**Demo recording.** `demo/sample.mp3` is a 34-second excerpt of a voiceover by Winston Moy (192 kbps MP3, 44.1 kHz mono), loaded by the hosted page so the tool has something real to show. It is included to demonstrate the tool and is not covered by the AGPL or licensed for other use. A page opened from disk can't load it and starts with a synthetic demo instead.
+**Demo recording.** `demo/sample.mp3` is a 34-second excerpt of a voiceover by Winston Moy (192 kbps MP3, 44.1 kHz mono), loaded by the hosted page so the tool has something real to show. If `demo/sample_labels.txt` (an Audacity label file) is present, the page shows those labels; otherwise it runs the detector on load. It is included to demonstrate the tool and is not covered by the AGPL or licensed for other use. A page opened from disk can't load it and starts with a synthetic demo instead.
 
 ## License
 
