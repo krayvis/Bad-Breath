@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Winston Moy. See LICENSE.
 import sys
 import numpy as np
 from scipy.io import wavfile

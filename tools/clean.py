@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Winston Moy. See LICENSE.
 """Apply a label file to a recording: duck breaths, soften smacks and plosives, shorten dead air.
 
   python3 clean.py in.wav labels.txt out.wav [--gap 1.5] [--breath-db -12] [--smack-db -24] [--report]

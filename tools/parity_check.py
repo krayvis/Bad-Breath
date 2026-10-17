@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Winston Moy. See LICENSE.
 """Check that the browser detector (index.html) and the Python detector (dlg.py) produce the same labels.
 
     python3 tools/parity_check.py recording.wav [index.html]

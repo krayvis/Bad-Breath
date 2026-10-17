@@ -65,4 +65,6 @@ The way to improve it is reviewed recordings: save a review log (**Save review l
 
 ## License
 
-MIT, copyright Winston Moy. See `LICENSE`.
+GNU Affero General Public License v3 (AGPL-3.0-only), copyright Winston Moy. See `LICENSE`.
+
+In short: you are free to use, study, modify and share it. If you distribute a modified version, or let people use one over a network (for example hosting a changed copy of the page), you must offer them the complete source of your version under the same license. You may not make it proprietary or relicense it more restrictively. The license does not ban selling copies, but anyone who sells one must give the buyer the source and the same freedoms, so it stays free to everyone. This is a summary, not legal advice; the license text governs.

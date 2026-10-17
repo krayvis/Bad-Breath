@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Winston Moy. See LICENSE.
 """Dialogue cleanup detector, version 2 (tuned on 3 minutes of reviewed labels).
 
 Library use:   f = features(x, sr);  ev = detect(f, params)
