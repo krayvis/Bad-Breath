@@ -63,6 +63,16 @@ Limits:
 
 The way to improve it is reviewed recordings: save a review log (**Save review log**) from your own recording and tune against it, or open an issue with what the detector got wrong. Only share a review log if you are happy for the timestamps to be public; it contains no audio.
 
+## Privacy and terms
+
+**Your audio stays on your computer.** The app runs entirely in your browser. A recording you open is read from your disk into the page's memory, analyzed there, and the cleaned file is made there and saved by your browser. Nothing is uploaded. There is no server, account, analytics or tracking in this project. This was checked by recording every network request while opening a recording, analyzing it and exporting it: after the page loads there are none.
+
+**What the page does load.** The page itself, from GitHub Pages (GitHub keeps ordinary web server logs; see GitHub's privacy statement), and two fonts from Google Fonts, so Google sees your IP address and browser details like any site that uses its fonts. Nothing else. A downloaded `index.html` works offline and falls back to your system fonts.
+
+**What is saved in your browser.** Your export and detection settings, and a draft of your label decisions (label times and the recording's file name, never any audio), kept in this site's local storage so a reload doesn't lose your review. Clear it with your browser's site data settings.
+
+**Terms.** Free software under the AGPL-3.0, provided "as is" with no warranty (sections 15 and 16 of the license). The tool never changes your original file; export saves a new one. Keep your originals and listen to the result before you publish it. The detection is tuned to one voice (see above), so it will make mistakes on others.
+
 ## License
 
 GNU Affero General Public License v3 (AGPL-3.0-only), copyright Winston Moy. See `LICENSE`.
