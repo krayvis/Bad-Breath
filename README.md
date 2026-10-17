@@ -4,9 +4,13 @@ Finds breaths, dead air and lip smacks in a voiceover or narration recording, le
 
 It is built for one job: quietly reduce the non-speaking parts of a read so it stays natural, and leave about a second or two of space between sentences.
 
+**Try it: https://krayvis.github.io/Bad-Breath/**
+
+**This is a demo, tuned to one voice.** The detection thresholds were fitted to one narrator's recordings in one room. On other voices and rooms it will miss breaths and flag the wrong things, so treat every flag as a suggestion and review before exporting. [`docs/TUNING.md`](docs/TUNING.md) explains how to tune it for your own setup, written for someone with audio analysis experience or for an AI agent doing it for you.
+
 ## The tool
 
-Open `dialogue_cleanup.html` in a browser. It is a single file and works offline (Firefox, Chrome and Safari).
+Open the page above, or download `index.html` and open it in a browser. It is a single file and works offline (Firefox, Chrome and Safari).
 
 1. **Open audio** and pick a WAV. It keeps the file's own sample rate and bit depth.
 2. **Analyze** flags breaths, dead air and lip smacks. A 5-minute recording takes about 7 seconds.
@@ -40,24 +44,25 @@ Smacks are short high-frequency envelope jumps of 20 dB or more in quiet context
 
 ## Scripts
 
-- `dlg.py`: the detector, as a library and command line. `python3 dlg.py in.wav outdir` writes `labels.txt`, `plosive_candidates.txt` and `events.csv`. The browser tool has the same detector built in and the two agree to within a millisecond. Needs numpy and scipy.
-- `clean.py`: applies a label file to a WAV without the browser. `python3 clean.py in.wav labels.txt out.wav --report`. Run it on the original recording, since time stamps move after dead air is cut.
-- `tune_breaths.py wav review_log.csv`: reruns the breath parameter search against a review log, scoring the first and second halves separately to catch overfitting.
-- `overview.py`: level and noise floor summary for a recording.
+- `tools/dlg.py`: the detector, as a library and command line. `python3 tools/dlg.py in.wav outdir` writes `labels.txt`, `plosive_candidates.txt` and `events.csv`. The browser tool has the same detector built in and the two agree to within a millisecond. Needs numpy and scipy.
+- `tools/clean.py`: applies a label file to a WAV without the browser. `python3 tools/clean.py in.wav labels.txt out.wav --report`. Run it on the original recording, since time stamps move after dead air is cut.
+- `tools/tune.py wav review_log.csv --kind breath --grid ...`: scores the detector against your reviewed labels and searches a parameter grid, scoring the first and second halves separately to catch overfitting.
+- `tools/parity_check.py wav`: checks that the browser and Python detectors produce the same labels.
+- `tools/overview.py`: level and noise floor summary for a recording.
 
 ## How well does it work
 
 The thresholds were tuned against 58 hand-made marks in the first three minutes of one narrator's recording: 35 of 35 breaths found, 12 of 12 dead air regions, 10 of 11 smacks. A second recording of the same narrator (7.5 minutes) behaves similarly, but its flags have not been reviewed by ear.
 
 Limits:
-- Tuned on one voice and one room. Other voices and rooms will need the sensitivity sliders, and may need re-tuning with `tune_breaths.py`.
+- Tuned on one voice and one room. Other voices and rooms will need the sensitivity sliders, and may need re-tuning with `tools/tune.py` (see `docs/TUNING.md`).
 - Added room noise hides lip smacks and some breaths. In one test, smack detection fell from 10 of 11 to 3.
 - Plosives are not detected automatically.
 - Not tested on recordings over about an hour.
 - The ramp lengths and breath edges are by-ear judgments; adjust them to taste in the export dialog.
 
-Reviews are the way to improve it: save a review log (`Save review log`) from your own recording and open an issue or pull request with what the detector got wrong.
+The way to improve it is reviewed recordings: save a review log (**Save review log**) from your own recording and tune against it, or open an issue with what the detector got wrong. Only share a review log if you are happy for the timestamps to be public; it contains no audio.
 
 ## License
 
-MIT, see `LICENSE`.
+MIT, copyright Winston Moy. See `LICENSE`.

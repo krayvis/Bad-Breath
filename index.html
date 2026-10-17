@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body style="margin:0">
-<title>Dialogue Cleanup</title>
-<title>Dialogue Cleanup</title>
+
+<title>Bad Breath: breath and dead air reduction for voiceover</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700&family=Spline+Sans+Mono:wght@400;500&display=swap">
 <style>
@@ -146,12 +146,20 @@ select{padding:3px 4px;border:1px solid var(--line);border-radius:4px;background
   .list{max-height:50vh}
   .readout{margin-left:0}
 }
+.demo-note{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:8px 12px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:4px;background:var(--panel);font-size:13px;line-height:1.45}
+.demo-note p{margin:0;flex:1 1 420px;min-width:0}
+.demo-note a{color:var(--accent);font-weight:500}
+.demo-note .btn{padding:2px 8px;font-size:12px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 
 <div class="app" id="app">
+<aside class="demo-note" id="demoNote" role="note">
+  <p><strong>This is a demo, tuned to one voice.</strong> The detection thresholds were fitted to a single narrator in one room. On other voices and rooms it will miss breaths and flag the wrong things, so treat every flag as a suggestion and review before exporting. Your audio stays in your browser; nothing is uploaded. <a href="https://github.com/krayvis/Bad-Breath/blob/main/docs/TUNING.md" target="_blank" rel="noopener">How to tune it for your own setup</a> &middot; <a href="https://github.com/krayvis/Bad-Breath" target="_blank" rel="noopener">Source on GitHub</a></p>
+  <button class="btn" type="button" id="demoNoteClose">Dismiss</button>
+</aside>
   <header class="top">
-    <h1>Dialogue Label Review</h1>
+    <h1>Bad Breath</h1>
     <div class="files">
       <div class="file"><span class="k">Audio</span><span class="v" id="audioName">demo</span></div>
       <div class="file"><span class="k">Labels</span><span class="v" id="labelsName">demo</span></div>
@@ -554,7 +562,12 @@ function percentileOf(arr, p) {
   return s[f] + (s[c] - s[f]) * (k - f);
 }
 
-// ---- detector (port of dlg.py, tuned on reviewed labels)
+// ---- detector (port of tools/dlg.py, tuned on one narrator's reviewed labels)
+// TUNING: these are the defaults the Analyze button uses. Names and meanings match DEFAULTS in tools/dlg.py, and
+// docs/TUNING.md explains each one and how to fit them to your own recordings with tools/tune.py. Levels are in dB
+// relative to the recording's own noise floor (br_loose, br_pre, da_lvl, sm_level, ...) or speech level (br_top,
+// br_grow_hi, ...), so they carry over between recordings of different loudness. Change a value here, then run
+// tools/parity_check.py to confirm the browser and Python detectors still agree.
 const DETECT = {
   br_loose: 5, br_top: 18, br_harm: 0.55, br_cent_loose: 2600, br_gap: 3, br_cent: 2000,
   br_burst: 12, br_burst_over: 12, br_endwin: 0.25, br_burst_keep: 0.15,
@@ -1749,6 +1762,7 @@ function renderClean(chans, sr, labels, o) {
   }
   updateCounts(); updateInspect(); requestRender();
 })();
+document.getElementById('demoNoteClose').addEventListener('click', function () { document.getElementById('demoNote').hidden = true; });
 </script>
 
 </body></html>

@@ -2,7 +2,7 @@ import sys
 import numpy as np
 from scipy.io import wavfile
 
-path, out_png = sys.argv[1], sys.argv[2]
+path = sys.argv[1]
 sr, x = wavfile.read(path)
 x = x.astype(np.float32) / 32768.0
 print("sr", sr, "samples", len(x), "dur_s", round(len(x) / sr, 1))

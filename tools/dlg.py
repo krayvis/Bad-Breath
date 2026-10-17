@@ -13,9 +13,9 @@ HOP_S, WIN_S = 0.010, 0.025
 DEFAULTS = dict(
     # breaths: grown from seed frames, long enough, dark enough, quiet before
     br_loose=5, br_top=18, br_harm=0.55, br_cent_loose=2600, br_gap=3, br_cent=2000,
-    br_burst=12, br_burst_over=12, br_endwin=0.25, br_burst_keep=0.15, br_trim_start=0.0, br_trim_end=0.0, br_valley=0.30, br_valley_drop=8, br_valley_keep=0.15, br_grow=0.40, br_grow_lo=-1, br_grow_hi=-42, br_grow_miss=6, br_seeds=8, br_min=0.24, br_max=1.2, br_pre=45,
+    br_burst=12, br_burst_over=12, br_endwin=0.25, br_burst_keep=0.15, br_trim_start=0.0, br_trim_end=0.0, br_valley=0.30, br_valley_drop=8, br_valley_keep=0.15, br_grow=0.40, br_grow_lo=-1, br_grow_hi=-24.6, br_grow_miss=6, br_seeds=8, br_min=0.24, br_max=1.2, br_pre=45,
     # smacks: strong short HF click in quiet context
-    sm_rise=20, sm_level=-45, sm_ctx=30, sm_inside_rise=22,
+    sm_rise=20, sm_level=20, sm_ctx=30, sm_inside_rise=22,
     # dead air: quiet stretches (room tone plus faint noise)
     da_lvl=14, da_min=0.4, da_in_start=0.10, da_in_end=0.01,
     # plosives (no reviewed examples yet): sub-55 Hz blast
@@ -29,7 +29,7 @@ def frames(sig, w, h):
 
 
 def features(x, sr):
-    hop, win = int(HOP_S * sr), int(WIN_S * sr)
+    hop, win = int(HOP_S * sr + 0.5), int(WIN_S * sr)
     F = frames(x, win, hop)
     n = len(F)
     rms = np.empty(n); harm = np.empty(n); flat = np.empty(n); cent = np.empty(n)
@@ -48,13 +48,14 @@ def features(x, sr):
         Pb = P[:, band] + 1e-20
         flat[s:e] = np.exp(np.log(Pb).mean(1)) / Pb.mean(1)
         cent[s:e] = (Pb * freqs[band]).sum(1) / Pb.sum(1)
-    floor = np.percentile(rms, 5)
+    live = rms[rms > -85]   # digital silence would otherwise drag the floor to -180 dB
+    floor = max(-80.0, np.percentile(live, 5)) if len(live) > 20 else -80.0
     voiced = (harm > 0.6) & (rms > floor + 25)
-    vref = np.percentile(rms[voiced], 50)
+    vref = np.percentile(rms[voiced], 50) if voiced.any() else floor + 40
     # 1 ms high-frequency envelope for clicks
     hs = signal.butter(4, 1500, "highpass", fs=sr, output="sos")
     hf = signal.sosfiltfilt(hs, x.astype(np.float64)).astype(np.float32)
-    fh, fw = 44, 88
+    fh = max(1, int(round(0.001 * sr))); fw = 2 * fh   # 1 ms hop, 2 ms window, whatever the sample rate
     HF = frames(hf, fw, fh)
     env = 20 * np.log10(np.sqrt((HF ** 2).mean(1)) + 1e-9)
     env_rise = env - ndimage.median_filter(env, size=101, mode="nearest")
@@ -79,10 +80,10 @@ def _segments(mask, min_len, max_len, merge_gap):
     return [(a, b) for a, b in segs if min_len <= (b - a + 1) <= max_len]
 
 
-def _grow(rms, a, b, P, floor):
+def _grow(rms, a, b, P, floor, vref):
     """Extend a detected breath outward over the quiet onset and tail that the strict rule misses.
     Walks while level stays between floor+lo and grow_hi (below speech), bridging short misses."""
-    ok = (rms > floor + P["br_grow_lo"]) & (rms < P["br_grow_hi"])
+    ok = (rms > floor + P["br_grow_lo"]) & (rms < vref + P["br_grow_hi"])
     maxf = int(P["br_grow"] / HOP_S)
     for direction in (-1, 1):
         edge, miss, k = (a if direction < 0 else b), 0, 0
@@ -155,7 +156,7 @@ def detect_breaths(f, P):
         pre = rms[max(0, a - 8):a].mean() if a > 0 else floor
         if pre > floor + P["br_pre"]:
             continue
-        a, b = _grow(rms, a, b, P, floor)
+        a, b = _grow(rms, a, b, P, floor, vref)
         b = _end_burst(rms, a, b, P)
         a = _valley_start(rms, a, b, P)
         out.append(("breath", _t(f, a) - 0.0125 + P["br_trim_start"], _t(f, b) + 0.0125 - P["br_trim_end"],
@@ -165,7 +166,7 @@ def detect_breaths(f, P):
 
 def detect_smacks(f, P, breaths):
     env, rise, fh, fw, sr, rms, floor = f["env"], f["env_rise"], f["fh"], f["fw"], f["sr"], f["rms"], f["floor"]
-    sc = (rise > P["sm_rise"]) & (env > P["sm_level"])
+    sc = (rise > P["sm_rise"]) & (env > floor + P["sm_level"])
     out = []
     for a, b in _segments(sc, 2, 40, 5):
         ts, te = (a * fh + fw / 2) / sr, (b * fh + fw / 2) / sr
