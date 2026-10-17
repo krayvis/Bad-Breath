@@ -21,9 +21,13 @@ What export does: breaths and dead air ease down to silence over 150 ms and come
 
 **Detection settings** has sliders for breath and lip smack sensitivity and for how quiet and how long dead air must be. Moving one redoes the detection instantly. Thresholds are measured against the recording's own noise floor and speech level, so a quieter or louder recording behaves the same.
 
-**Viewing**: scroll or pinch to zoom around the pointer, Shift+scroll or the arrow keys to pan, F zooms to the selected label, 0 fits the whole recording. Drag the bar between the waveform and the spectrogram to trade height from one to the other (double-click resets it, and the setting is remembered). The spectrogram appears when the view is under 30 s.
+**Viewing**: scroll or pinch to zoom around the pointer, Shift+scroll or the arrow keys to pan, F zooms to the selected label, 0 fits the whole recording. Drag the bar between the waveform and the spectrogram to trade height from one to the other (double-click resets it, and the setting is remembered). The spectrogram is full detail when the view is under 30 s. Zoomed out past that it shows a coarser version, averaged over time, so a long recording still shows where the speech, pauses and noisy stretches are.
 
 **Save labels** writes an Audacity-style label file. **Save review log** records every keep, reject and move, which is what the detector gets tuned against.
+
+## Status
+
+A working prototype. The deliverable is this standalone browser app: open a recording, review what it flags, export a clean WAV. All of that works now, with no Audacity or other software involved. What remains is polish and tuning: checking the breath markers on recordings made years apart, listening to the ramps and breath edges and adjusting them, and covering more rooms and voices. The known gaps are listed under "How well does it work".
 
 ## Label types
 

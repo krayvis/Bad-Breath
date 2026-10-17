@@ -1363,54 +1363,84 @@ function renderClean(chans, sr, labels, o) {
     drawRegionAndPlayhead(g, w, 0, plotH, h);
   }
 
-  // spectrogram
-  let specCache = { key: null }, specTimer = 0;
-  const specOff = document.createElement('canvas');
+  // spectrogram. Under 30 s it is the detailed view (one FFT per column). Past 30 s each column covers several
+  // seconds, so it averages the power of a few FFT frames spread across the column and fills in over several
+  // short tasks, so a long file never blocks the page.
+  let specCache = { key: null }, specTimer = 0, specJob = 0;
+  const SPEC_WIDE = 30;
   function specKey(w) { return [S.name, S.t0.toFixed(5), S.t1.toFixed(5), Math.floor(w), S.fmax].join('|'); }
   function computeSpec(w) {
-    const span = S.t1 - S.t0; if (span > 30 || !S.buf) { specCache = { key: null }; return; }
-    const N = S.fmax <= 2000 ? 4096 : 1024, p = fftPlan(N);
-    const cols = Math.min(Math.floor(w), N > 1024 ? 800 : 1200) || 1;
-    const binMax = Math.max(8, Math.min(N / 2, Math.floor(S.fmax / (S.sr / 2) * (N / 2))));
-    specOff.width = cols; specOff.height = binMax;
-    const og = specOff.getContext('2d'), img = og.createImageData(cols, binMax);
-    const re = new Float32Array(N), im = new Float32Array(N), db = new Float32Array(binMax), VMIN = -120, VMAX = -30;
-    for (let c = 0; c < cols; c++) {
-      const center = (S.t0 + span * (c + 0.5) / cols) * S.sr;
-      specColumn(S.mono, center, p, binMax, re, im, db);
-      for (let k = 0; k < binMax; k++) {
-        const idx = clamp(Math.round((db[k] - VMIN) / (VMAX - VMIN) * 255), 0, 255), o = ((binMax - 1 - k) * cols + c) * 4;
-        img.data[o] = LUT[idx * 3]; img.data[o + 1] = LUT[idx * 3 + 1]; img.data[o + 2] = LUT[idx * 3 + 2]; img.data[o + 3] = 255;
+    const my = ++specJob;
+    if (!S.buf) { specCache = { key: null }; return; }
+    const span = S.t1 - S.t0, wide = span > SPEC_WIDE, mono = S.mono, fmax = S.fmax, t0 = S.t0, t1 = S.t1, key = specKey(w);
+    const N = wide ? (fmax <= 2000 ? 2048 : 1024) : (fmax <= 2000 ? 4096 : 1024), p = fftPlan(N);
+    const cols = Math.min(Math.floor(w), wide ? 1200 : (N > 1024 ? 800 : 1200)) || 1;
+    const binMax = Math.max(8, Math.min(N / 2, Math.floor(fmax / (S.sr / 2) * (N / 2))));
+    const colSpan = span / cols;
+    const M = wide ? clamp(Math.round(colSpan / 0.03), 1, Math.max(1, Math.floor(12000 / cols))) : 1;
+    const target = document.createElement('canvas'); target.width = cols; target.height = binMax;
+    const tg = target.getContext('2d'), img = tg.createImageData(cols, binMax);
+    const re = new Float32Array(N), im = new Float32Array(N), db = new Float32Array(binMax), acc = new Float32Array(binMax), VMIN = -120, VMAX = -30;
+    const perChunk = wide ? Math.max(8, Math.floor(600 / M)) : cols;
+    let c = 0;
+    function step() {
+      if (my !== specJob || S.mono !== mono || S.fmax !== fmax) return;
+      const end = Math.min(cols, c + perChunk);
+      for (; c < end; c++) {
+        let col = db;
+        if (M === 1) specColumn(mono, (t0 + span * (c + 0.5) / cols) * S.sr, p, binMax, re, im, db);
+        else {
+          acc.fill(0);
+          for (let j = 0; j < M; j++) {
+            specColumn(mono, (t0 + colSpan * (c + (j + 0.5) / M)) * S.sr, p, binMax, re, im, db);
+            for (let k = 0; k < binMax; k++) acc[k] += Math.pow(10, db[k] / 10);
+          }
+          for (let k = 0; k < binMax; k++) acc[k] = 10 * Math.log10(acc[k] / M + 1e-12);
+          col = acc;
+        }
+        for (let k = 0; k < binMax; k++) {
+          const idx = clamp(Math.round((col[k] - VMIN) / (VMAX - VMIN) * 255), 0, 255), o = ((binMax - 1 - k) * cols + c) * 4;
+          img.data[o] = LUT[idx * 3]; img.data[o + 1] = LUT[idx * 3 + 1]; img.data[o + 2] = LUT[idx * 3 + 2]; img.data[o + 3] = 255;
+        }
       }
+      tg.putImageData(img, 0, 0);
+      specCache = { key, t0, t1, img: target, wide };
+      requestRender();
+      if (c < cols) setTimeout(step, 0);
     }
-    og.putImageData(img, 0, 0);
-    const keep = document.createElement('canvas'); keep.width = cols; keep.height = binMax; keep.getContext('2d').drawImage(specOff, 0, 0);
-    specCache = { key: specKey(w), t0: S.t0, t1: S.t1, img: keep };
+    step();
   }
   function drawSpec(allowCompute) {
     const { g, w, h } = fit(cvSpec); if (!w || !h) return;
     g.fillStyle = C.bg; g.fillRect(0, 0, w, h);
     if (!S.buf) return;
-    const span = S.t1 - S.t0;
-    if (span > 30) {
-      g.fillStyle = C.text; g.font = MONO; g.textBaseline = 'middle'; g.textAlign = 'center';
-      g.fillText('Zoom in to under 30 s to see the spectrogram', w / 2, h / 2); g.textAlign = 'left';
-    } else {
-      if (specCache.img) {
-        const x0 = tToX(specCache.t0, w), x1 = tToX(specCache.t1, w);
-        g.imageSmoothingEnabled = true; g.drawImage(specCache.img, x0, 0, x1 - x0, h);
+    const wide = S.t1 - S.t0 > SPEC_WIDE;
+    if (specCache.img) {
+      const x0 = tToX(specCache.t0, w), x1 = tToX(specCache.t1, w);
+      g.imageSmoothingEnabled = true; g.drawImage(specCache.img, x0, 0, x1 - x0, h);
+    }
+    if (specCache.key !== specKey(w)) {
+      if (!specTimer) specTimer = setTimeout(() => { specTimer = 0; computeSpec(cvSpec.clientWidth); requestRender(); }, 50);
+    }
+    // frequency ticks
+    g.fillStyle = C.text; g.font = MONO; g.textBaseline = 'middle';
+    const fstep = S.fmax <= 1500 ? 250 : S.fmax <= 4000 ? 1000 : S.fmax <= 8000 ? 2000 : 4000;
+    for (let f = fstep; f < S.fmax; f += fstep) {
+      const y = Math.round(h - f / S.fmax * h) + 0.5;
+      g.strokeStyle = 'rgba(255,255,255,0.13)'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+      const lab = (f >= 1000 ? (f / 1000) + 'k' : f) + ' Hz';
+      g.lineJoin = 'round'; g.lineWidth = 3; g.strokeStyle = 'rgba(10,16,22,0.85)'; g.strokeText(lab, 4, y - 7);
+      g.fillStyle = '#c9d6df'; g.fillText(lab, 4, y - 7);
+    }
+    if (wide) {
+      const msg = 'Averaged view. Zoom in under 30 s for full detail.';
+      g.font = MONO; g.textAlign = 'right'; g.textBaseline = 'middle';
+      const tw = g.measureText(msg).width;
+      if (tw + 24 < w) {
+        g.fillStyle = 'rgba(10,16,22,0.78)'; g.fillRect(w - tw - 20, 6, tw + 14, 20);
+        g.fillStyle = '#c9d6df'; g.fillText(msg, w - 13, 16);
       }
-      if (specCache.key !== specKey(w)) {
-        if (!specTimer) specTimer = setTimeout(() => { specTimer = 0; computeSpec(cvSpec.clientWidth); requestRender(); }, 50);
-      }
-      // frequency ticks
-      g.fillStyle = C.text; g.font = MONO; g.textBaseline = 'middle';
-      const fstep = S.fmax <= 1500 ? 250 : S.fmax <= 4000 ? 1000 : S.fmax <= 8000 ? 2000 : 4000;
-      for (let f = fstep; f < S.fmax; f += fstep) {
-        const y = Math.round(h - f / S.fmax * h) + 0.5;
-        g.strokeStyle = 'rgba(255,255,255,0.13)'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
-        g.fillText((f >= 1000 ? (f / 1000) + 'k' : f) + ' Hz', 4, y - 7);
-      }
+      g.textAlign = 'left';
     }
     drawLabelOverlay(g, w, 0, h, false);
     drawRegionAndPlayhead(g, w, 0, h, h);
@@ -1447,7 +1477,7 @@ function renderClean(chans, sr, labels, o) {
     const cv = e.currentTarget, p = pt(e, cv); if (!S.buf) return;
     const t = clamp(xToT(p.x, p.w), 0, S.dur);
     let txt = fmtTime(t, 3);
-    if (cv === cvSpec && S.t1 - S.t0 <= 30) txt += '   ' + Math.round((1 - p.y / p.h) * S.fmax) + ' Hz';
+    if (cv === cvSpec) txt += '   ' + Math.round((1 - p.y / p.h) * S.fmax) + ' Hz';
     $('#readout').textContent = txt;
     if (!drag) {
       const sel = byId(S.selId);
