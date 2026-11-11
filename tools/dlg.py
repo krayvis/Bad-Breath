@@ -37,10 +37,12 @@ def features(x, sr):
     n = len(F)
     rms = np.empty(n); harm = np.empty(n); flat = np.empty(n); cent = np.empty(n)
     w = np.hanning(win).astype(np.float32)
-    nfft = 4096
+    lagmin, lagmax = int(sr / 400), int(sr / 70)
+    nfft = 1024   # same rule as the browser detector (index.html): the smallest power of two that holds the window and the longest lag
+    while nfft < win + lagmax + 2:
+        nfft <<= 1
     freqs = np.fft.rfftfreq(nfft, 1 / sr)
     band = (freqs >= 300) & (freqs <= 6000)
-    lagmin, lagmax = int(sr / 400), int(sr / 70)
     for s in range(0, n, 2000):
         blk = F[s:s + 2000]; e = s + len(blk)
         rms[s:e] = 20 * np.log10(np.sqrt((blk ** 2).mean(1)) + 1e-9)
