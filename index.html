@@ -271,8 +271,8 @@ select{padding:3px 4px;border:1px solid var(--line);border-radius:4px;background
   <footer class="keys">
     <span><kbd>Click</kbd> place playhead</span>
     <span><kbd>Drag</kbd> select a region</span>
-    <span><kbd>Wheel</kbd> zoom</span>
-    <span><kbd>Shift</kbd>+<kbd>Wheel</kbd> or <kbd>&larr;</kbd><kbd>&rarr;</kbd> pan</span>
+    <span><kbd>Pinch</kbd> or <kbd>Cmd</kbd>+<kbd>Wheel</kbd> zoom</span>
+    <span>Two-finger swipe, <kbd>Shift</kbd>+<kbd>Wheel</kbd> or <kbd>&larr;</kbd><kbd>&rarr;</kbd> pan</span>
     <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> previous / next label</span>
     <span><kbd>Shift</kbd>+<kbd>Space</kbd> play label only</span>
     <span><kbd>A</kbd> auto-play</span>
@@ -306,6 +306,7 @@ select{padding:3px 4px;border:1px solid var(--line);border-radius:4px;background
       <label class="fld">Ease down (ms) <input type="number" id="oDown" min="0" max="1000" step="10"></label>
       <label class="fld">Back up (ms) <input type="number" id="oUp" min="0" max="1000" step="10"></label>
       <label class="fld">Breath padding (ms) <input type="number" id="oPad" min="0" max="200" step="5"></label>
+      <label class="fld">Back off before speech (ms) <input type="number" id="oLead" min="0" max="200" step="1"></label>
       <label class="fld">Lip smacks (dB) <input type="number" id="oSmack" min="-60" max="0" step="1"></label>
       <label class="fld">Bit depth <select id="oBits"><option value="16">16-bit</option><option value="24">24-bit</option></select></label>
       <label class="fld full"><span><input type="checkbox" id="oCut"> Shorten dead air to</span> <span><input type="number" id="oGap" min="0.2" max="10" step="0.1"> s</span></label>
@@ -593,7 +594,8 @@ const DETECT = {
   br_loose: 5, br_top: 18, br_harm: 0.55, br_cent_loose: 2600, br_gap: 3, br_cent: 2000,
   br_burst: 12, br_burst_over: 12, br_endwin: 0.25, br_burst_keep: 0.15,
   br_valley: 0.30, br_valley_drop: 8, br_valley_keep: 0.15, br_grow: 0.40, br_grow_lo: -1, br_grow_hi: -24.6, br_grow_miss: 6,
-  br_seeds: 8, br_min: 0.24, br_max: 1.2, br_pre: 45,
+  br_seeds: 8, br_min: 0.24, br_max: 1.2, br_pre: 45, br_mean_top: 26,
+  br_hf: 28, br_hf_flat: 0.25, br_pitch: 0.5, br_uneven: 8, br_wordend_gap: 0.045, br_wordend_cent: 1650, br_wordend_flat: 0.2,
   sm_rise: 20, sm_level: 20, sm_ctx: 30, sm_inside_rise: 22,
   da_lvl: 14, da_min: 0.4, da_in_start: 0.10, da_in_end: 0.01
 };
@@ -609,7 +611,7 @@ async function detectFeatures(mono, sr, onProgress) {
   const hann = new Float32Array(win); for (let k = 0; k < win; k++) hann[k] = 0.5 - 0.5 * Math.cos(2 * Math.PI * k / (win - 1));
   const kLo = Math.ceil(300 * N / sr), kHi = Math.floor(6000 * N / sr), fk = new Float32Array(N / 2 + 1);
   for (let k = 0; k <= N / 2; k++) fk[k] = k * sr / N;
-  const rms = new Float32Array(n), harm = new Float32Array(n), cent = new Float32Array(n);
+  const rms = new Float32Array(n), harm = new Float32Array(n), cent = new Float32Array(n), flat = new Float32Array(n);
   const PA = new Float32Array(N / 2 + 1), PB = new Float32Array(N / 2 + 1);
   for (let i = 0; i < n; i += 2) {
     const two = i + 1 < n, o1 = i * hop, o2 = (i + 1) * hop;
@@ -628,6 +630,10 @@ async function detectFeatures(mono, sr, onProgress) {
     let sa = 1e-20, sfa = 0, sb = 1e-20, sfb = 0;
     for (let k = kLo; k <= kHi; k++) { sa += PA[k]; sfa += PA[k] * fk[k]; sb += PB[k]; sfb += PB[k] * fk[k]; }
     cent[i] = sfa / sa; if (two) cent[i + 1] = sfb / sb;
+    // spectral flatness over the same band: geometric mean over arithmetic mean of the power (1 = noise-like, 0 = tonal)
+    { const cnt = kHi - kLo + 1; let la = 0, aa = 0, lb = 0, ab = 0;
+      for (let k = kLo; k <= kHi; k++) { const x = PA[k] + 1e-20, y = PB[k] + 1e-20; la += Math.log(x); aa += x; lb += Math.log(y); ab += y; }
+      flat[i] = Math.exp(la / cnt) / (aa / cnt); if (two) flat[i + 1] = Math.exp(lb / cnt) / (ab / cnt); }
     for (let k = 0; k <= N / 2; k++) { const nk = (N - k) & (N - 1); re[k] = PA[k]; im[k] = PB[k]; re[nk] = PA[k]; im[nk] = PB[k]; }
     fftInPlace(re, im, plan);
     let ma = -1e30, mb = -1e30;
@@ -647,7 +653,7 @@ async function detectFeatures(mono, sr, onProgress) {
   const base = medianFilterOdd(env, 101), rise = new Float32Array(nE);
   for (let i = 0; i < nE; i++) rise[i] = env[i] - base[i];
   if (onProgress) onProgress(1);
-  return { sr, hop, win, n, rms, harm, cent, floor, vref, env, rise, fh, fw };
+  return { sr, hop, win, n, rms, harm, cent, flat, floor, vref, env, rise, fh, fw };
 }
 
 function _segs(mask, minLen, maxLen, mergeGap) {
@@ -721,6 +727,21 @@ function detectBreaths(f, P) {
         let mx = -1e9; for (let k = a; k < a + m; k++) if (rms[k] > mx) mx = rms[k];
         if (mx - sm[m] >= P.br_valley_drop && (b - (a + m)) * HOP_S >= P.br_valley_keep) a += m;
       }
+    }
+    // Final checks on the finished label (same as dlg.py). They reject runs that are really speech sounds or mouth noise.
+    {
+      const cnt = b - a + 1; let sr_ = 0, sh = 0, sc = 0, sf = 0;
+      for (let k = a; k <= b; k++) { sr_ += rms[k]; sh += harm[k]; sc += cent[k]; sf += f.flat[k]; }
+      const mean = sr_ / cnt; let v = 0; for (let k = a; k <= b; k++) v += (rms[k] - mean) * (rms[k] - mean);
+      const sd = Math.sqrt(v / cnt), harmM = sh / cnt, centM = sc / cnt, flatM = sf / cnt;
+      if (mean > vref - P.br_mean_top) continue;                                   // too loud on average: a quiet syllable, or the wind-up to a word
+      const ts = Math.max(0, _ft(f, a) - 0.0125), te = _ft(f, b) + 0.0125;
+      let hfm = -Infinity; for (let k = Math.floor(ts * f.sr / f.fh); k < Math.min(f.rise.length, Math.floor(te * f.sr / f.fh)); k++) if (f.rise[k] > hfm) hfm = f.rise[k];
+      if (hfm >= P.br_hf && flatM >= P.br_hf_flat) continue;                       // bright, noisy and bursty: a lip smack or other mouth noise
+      if (harmM >= P.br_pitch && sd >= P.br_uneven) continue;                      // pitched and uneven: whispering, muttering or a stray voice
+      let kk = a - 1; while (kk > 0 && rms[kk] < vref - 12 && a - kk < 60) kk--;
+      const gap = rms[kk] >= vref - 12 ? (a - kk) * HOP_S : 0.6;
+      if (gap <= P.br_wordend_gap && centM > P.br_wordend_cent && flatM >= P.br_wordend_flat) continue;   // starts right at the end of a word and is bright: its "th", "s" or "f"
     }
     out.push({ kind: 'breath', start: _ft(f, a) - 0.0125, end: _ft(f, b) + 0.0125 });
   }
@@ -802,16 +823,16 @@ function _ramp(env, s, e, gain, r) {
   for (let i = e; i < b1; i++) { const g = gain + (1 - gain) * ((i - e) / (b1 - e)); if (g < env[i]) env[i] = g; }
 }
 
-// labels: [{kind,start,end}] seconds. o: {breathDb (null = silence), rampDown, rampUp, pad, smackDb, gap (null = keep all dead air), cuts, lowCutHz}
+// labels: [{kind,start,end}] seconds. o: {breathDb (null = silence), rampDown, rampUp, pad, lead (breath dip ends this much earlier, so it is fully back up before speech), smackDb, gap (null = keep all dead air), cuts, lowCutHz}
 function renderClean(chans, sr, labels, o) {
   const n = chans[0].length, env = new Float32Array(n).fill(1);
   const bg = (o.breathDb == null || o.breathDb <= -60) ? 0 : Math.pow(10, o.breathDb / 20);
-  const rd = Math.round(o.rampDown * sr), ru = Math.round(o.rampUp * sr), pad = Math.round(o.pad * sr);
+  const rd = Math.round(o.rampDown * sr), ru = Math.round(o.rampUp * sr), pad = Math.round(o.pad * sr), lead = Math.round((o.lead || 0) * sr);
   const sg = Math.pow(10, o.smackDb / 20), r5 = Math.round(0.005 * sr);
   const labs = labels.slice().sort((a, b) => a.start - b.start);
   for (const l of labs) {
     const si = Math.trunc(l.start * sr), ei = Math.trunc(l.end * sr);
-    if (l.kind === 'breath') _dip(env, si - pad, ei + pad, bg, rd, ru);
+    if (l.kind === 'breath') _dip(env, si - pad, ei + pad - lead, bg, rd, ru);
     else if (l.kind === 'dead') _dip(env, si, ei, 0, rd, ru);
     else if (l.kind === 'smack') _ramp(env, si, ei, sg, r5);
   }
@@ -1177,6 +1198,8 @@ function renderClean(chans, sr, labels, o) {
     const l = byId(S.selId);
     if (!l) { setStatus('Select a label first.'); return; }
     pushUndo();
+    // Rejecting leaves the selection, view and playhead where they are, so you can click around the label or press the down arrow when ready. Keeping moves on to the next unreviewed label.
+    if (status === 'reject') { l.status = status; touch(); renderList(); requestRender(); setStatus('Rejected. The playhead stays put; press the down arrow for the next label.', 'ok'); return; }
     const next = nextPendingAfter(l);
     l.status = status; touch(); renderList();
     if (next) selectLabel(next.id, { focus: true, play: true });
@@ -1512,17 +1535,21 @@ function renderClean(chans, sr, labels, o) {
     cv.addEventListener('pointerdown', onDown); cv.addEventListener('pointermove', onMove);
     cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', () => { drag = null; });
     cv.addEventListener('wheel', e => {
-      if (!S.buf) return; e.preventDefault();
+      if (!S.buf) return;
+      // Zoom only on a trackpad pinch (a wheel event with ctrlKey set) or Cmd/Ctrl + wheel. Plain vertical scrolling is left alone so the page scrolls.
+      const zoom = e.ctrlKey || e.metaKey, horiz = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      if (!zoom && !horiz) return;
+      e.preventDefault();
       const p = pt(e, cv), span = S.t1 - S.t0;
-      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        const dx = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / p.w * span;
-        setView(S.t0 + dx, S.t1 + dx);
-      } else {
+      if (zoom) {
         // Trackpad pinch arrives as a wheel event with ctrlKey and small deltas, so it needs a much stronger gain than a mouse wheel.
         const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
         const gain = e.ctrlKey ? 0.015 : 0.0015;
         const anchor = xToT(p.x, p.w), ns = clamp(span * Math.exp(clamp(dy * gain, -1.2, 1.2)), 0.05, S.dur), f = ns / span;
         setView(anchor - (anchor - S.t0) * f, anchor + (S.t1 - anchor) * f);
+      } else {
+        const dx = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / p.w * span;
+        setView(S.t0 + dx, S.t1 + dx);
       }
     }, { passive: false });
     // Safari reports trackpad pinch as gesture events rather than wheel events
@@ -1587,14 +1614,14 @@ function renderClean(chans, sr, labels, o) {
 
   // ---------------------------------------------------------------- analysis and export
   const EXP_KEY = 'dlr-exp1';
-  let EXP = { breath: 'silence', down: 150, up: 50, pad: 20, smack: -24, bits: null, cut: true, gap: 1.5, pend: true };
+  let EXP = { breath: 'silence', down: 150, up: 50, pad: 20, lead: 5, smack: -24, bits: null, cut: true, gap: 1.5, pend: true };
   try { const r = localStorage.getItem(EXP_KEY); if (r) { const o = JSON.parse(r); delete o.bits; Object.assign(EXP, o); } } catch (e) { /* storage unavailable */ }
   const baseOf = n => String(n || 'recording').replace(/\.[^.]+$/, '');
   const chansOf = buf => { const a = []; for (let c = 0; c < buf.numberOfChannels; c++) a.push(buf.getChannelData(c)); return a; };
   const labelsFor = incl => S.labels.filter(l => l.status === 'keep' || (incl && l.status === 'pending')).map(l => ({ kind: l.kind, start: l.start, end: l.end }));
   function procOpts(cuts) {
     return { breathDb: EXP.breath === 'silence' ? null : Number(EXP.breath), rampDown: EXP.down / 1000, rampUp: EXP.up / 1000,
-      pad: EXP.pad / 1000, smackDb: EXP.smack, gap: EXP.cut ? EXP.gap : null, cuts: cuts };
+      pad: EXP.pad / 1000, lead: EXP.lead / 1000, smackDb: EXP.smack, gap: EXP.cut ? EXP.gap : null, cuts: cuts };
   }
   function procBuffer() {
     if (!S.proc) {
@@ -1665,14 +1692,14 @@ function renderClean(chans, sr, labels, o) {
   }
 
   function expToForm() {
-    $('#oBreath').value = EXP.breath; $('#oDown').value = EXP.down; $('#oUp').value = EXP.up; $('#oPad').value = EXP.pad;
+    $('#oBreath').value = EXP.breath; $('#oDown').value = EXP.down; $('#oUp').value = EXP.up; $('#oPad').value = EXP.pad; $('#oLead').value = EXP.lead;
     $('#oSmack').value = EXP.smack; $('#oBits').value = String(EXP.bits || (S.bits === 24 ? 24 : 16));
     $('#oCut').checked = EXP.cut; $('#oGap').value = EXP.gap; $('#oPend').checked = EXP.pend;
   }
   const num = (id, lo, hi, dflt) => { const v = parseFloat($(id).value); return isFinite(v) ? clamp(v, lo, hi) : dflt; };
   function expFromForm() {
     EXP.breath = $('#oBreath').value; EXP.down = num('#oDown', 0, 1000, 150); EXP.up = num('#oUp', 0, 1000, 50);
-    EXP.pad = num('#oPad', 0, 200, 20); EXP.smack = num('#oSmack', -60, 0, -24); EXP.bits = Number($('#oBits').value);
+    EXP.pad = num('#oPad', 0, 200, 20); EXP.lead = num('#oLead', 0, 200, 5); EXP.smack = num('#oSmack', -60, 0, -24); EXP.bits = Number($('#oBits').value);
     EXP.cut = $('#oCut').checked; EXP.gap = num('#oGap', 0.2, 10, 1.5); EXP.pend = $('#oPend').checked;
     S.proc = null;
     try { localStorage.setItem(EXP_KEY, JSON.stringify(EXP)); } catch (e) { /* storage unavailable */ }
@@ -1731,7 +1758,7 @@ function renderClean(chans, sr, labels, o) {
   $('#btnExport').addEventListener('click', openExport);
   $('#expClose').addEventListener('click', () => { $('#exp').hidden = true; });
   $('#expSave').addEventListener('click', doExport);
-  ['#oBreath', '#oDown', '#oUp', '#oPad', '#oSmack', '#oBits', '#oCut', '#oGap', '#oPend'].forEach(id => $(id).addEventListener('input', () => { expFromForm(); expSummary(); }));
+  ['#oBreath', '#oDown', '#oUp', '#oPad', '#oLead', '#oSmack', '#oBits', '#oCut', '#oGap', '#oPend'].forEach(id => $(id).addEventListener('input', () => { expFromForm(); expSummary(); }));
   $('#chkProc').addEventListener('change', e => { S.hearProc = e.target.checked; e.target.blur(); if (S.hearProc) setStatus('Playback now has the flagged sections silenced. Rejected labels are left alone.'); });
   $('#btnLabels').addEventListener('click', () => $('#fileLabels').click());
   $('#fileAudio').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadAudioFile(f); e.target.value = ''; });

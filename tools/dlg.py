@@ -15,7 +15,8 @@ HOP_S, WIN_S = 0.010, 0.025
 DEFAULTS = dict(
     # breaths: grown from seed frames, long enough, dark enough, quiet before
     br_loose=5, br_top=18, br_harm=0.55, br_cent_loose=2600, br_gap=3, br_cent=2000,
-    br_burst=12, br_burst_over=12, br_endwin=0.25, br_burst_keep=0.15, br_trim_start=0.0, br_trim_end=0.0, br_valley=0.30, br_valley_drop=8, br_valley_keep=0.15, br_grow=0.40, br_grow_lo=-1, br_grow_hi=-24.6, br_grow_miss=6, br_seeds=8, br_min=0.24, br_max=1.2, br_pre=45,
+    br_burst=12, br_burst_over=12, br_endwin=0.25, br_burst_keep=0.15, br_trim_start=0.0, br_trim_end=0.0, br_valley=0.30, br_valley_drop=8, br_valley_keep=0.15, br_grow=0.40, br_grow_lo=-1, br_grow_hi=-24.6, br_grow_miss=6, br_seeds=8, br_min=0.24, br_max=1.2, br_pre=45, br_mean_top=26,
+    br_hf=28, br_hf_flat=0.25, br_pitch=0.5, br_uneven=8, br_wordend_gap=0.045, br_wordend_cent=1650, br_wordend_flat=0.2,
     # smacks: strong short HF click in quiet context
     sm_rise=20, sm_level=20, sm_ctx=30, sm_inside_rise=22,
     # dead air: quiet stretches (room tone plus faint noise)
@@ -161,6 +162,23 @@ def detect_breaths(f, P):
         a, b = _grow(rms, a, b, P, floor, vref)
         b = _end_burst(rms, a, b, P)
         a = _valley_start(rms, a, b, P)
+        # Final checks on the finished label. They reject runs that are really speech sounds or mouth noise.
+        # Fitted to labels reviewed by ear in one recording; see docs/TUNING.md. Rejecting leaves the audio untouched.
+        if rms[a:b + 1].mean() > vref - P["br_mean_top"]:
+            continue    # too loud on average: a quiet syllable, or the wind-up to a word
+        ts, te = max(0.0, _t(f, a) - 0.0125), _t(f, b) + 0.0125
+        hfr = f["env_rise"][int(ts * f["sr"] / f["fh"]):int(te * f["sr"] / f["fh"])]
+        flat_m, harm_m, cent_m, sd = f["flat"][a:b + 1].mean(), harm[a:b + 1].mean(), cent[a:b + 1].mean(), rms[a:b + 1].std()
+        if len(hfr) and hfr.max() >= P["br_hf"] and flat_m >= P["br_hf_flat"]:
+            continue    # bright, noisy and bursty: a lip smack or other mouth noise
+        if harm_m >= P["br_pitch"] and sd >= P["br_uneven"]:
+            continue    # pitched and uneven: whispering, muttering or a stray voice
+        k = a - 1
+        while k > 0 and rms[k] < vref - 12 and a - k < 60:
+            k -= 1
+        gap = (a - k) * HOP_S if rms[k] >= vref - 12 else 0.6
+        if gap <= P["br_wordend_gap"] and cent_m > P["br_wordend_cent"] and flat_m >= P["br_wordend_flat"]:
+            continue    # starts right at the end of a word and is bright: the "th", "s" or "f" of a word
         out.append(("breath", _t(f, a) - 0.0125 + P["br_trim_start"], _t(f, b) + 0.0125 - P["br_trim_end"],
                     dict(level=float(rms[a:b + 1].mean()), cent=float(cent[a:b + 1].mean()), pre=float(pre), dur=dur)))
     return out

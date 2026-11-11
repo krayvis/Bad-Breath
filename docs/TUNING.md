@@ -104,6 +104,12 @@ A breath is a run of frames that is quiet, unpitched and dull, then trimmed at i
 | `br_grow_miss` | 6 | Frames of failing the growth test that are tolerated before it stops. |
 | `br_valley`, `br_valley_drop`, `br_valley_keep` | 0.30, 8, 0.15 | Start the breath at the lowest point of its first `br_valley` seconds, if that is at least `br_valley_drop` dB below the loudest earlier frame and at least `br_valley_keep` seconds of breath remain. Keeps the trailing "t" or "s" of the previous word out. |
 | `br_burst`, `br_burst_over`, `br_endwin`, `br_burst_keep` | 12, 12, 0.25, 0.15 | End the breath before a sharp onset in its last `br_endwin` seconds: a frame at least `br_burst` dB above the mean of the five before it and `br_burst_over` dB above the breath's median level. At least `br_burst_keep` seconds must remain. This is the "t" of "to". |
+| `br_mean_top` | 26 | After the edges are set, the breath's mean level must be at least this far below speech, or it is dropped. Catches a quiet syllable or the wind-up to a word that passed the frame tests. Raise it to drop more, lower it to allow louder breaths. |
+| `br_hf`, `br_hf_flat` | 28, 0.25 | Drop a breath whose peak 1 ms high-frequency rise is at least `br_hf` dB and whose mean spectral flatness is at least `br_hf_flat`: bright, noisy and bursty, so a lip smack or other mouth noise. |
+| `br_pitch`, `br_uneven` | 0.5, 8 | Drop a breath whose mean periodicity is at least `br_pitch` and whose level varies by at least `br_uneven` dB (standard deviation): whispering, muttering or a stray voice. |
+| `br_wordend_gap`, `br_wordend_cent`, `br_wordend_flat` | 0.045, 1650, 0.2 | Drop a breath that starts within `br_wordend_gap` seconds of loud speech, with a mean centroid above `br_wordend_cent` Hz and flatness of at least `br_wordend_flat`: the "th", "s" or "f" at the end of a word. |
+
+The five checks above were fitted to labels reviewed by ear in one recording (about a dozen mistakes), so they will need re-checking on other voices. Dropping a breath label only leaves that audio untouched.
 | `br_trim_start`, `br_trim_end` | 0, 0 | Python only. Shift the label edges by this many seconds after everything else. |
 
 ### Lip smacks

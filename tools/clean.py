@@ -23,6 +23,7 @@ ap.add_argument("--breath-db", type=float, default=-60.0, help="depth of the bre
 ap.add_argument("--ramp", type=float, default=0.15, help="seconds to ease breaths and dead air down to silence, after the word before (default 0.15)")
 ap.add_argument("--ramp-up", type=float, default=0.05, help="seconds to come back up before the next word, which starts quickly (default 0.05)")
 ap.add_argument("--pad", type=float, default=0.02, help="seconds added to each side of a breath (default 0.02)")
+ap.add_argument("--lead", type=float, default=0.005, help="seconds the breath dip ends earlier, so it is fully back up before the next word (default 0.005)")
 ap.add_argument("--smack-db", type=float, default=-24.0)
 ap.add_argument("--report", action="store_true")
 a = ap.parse_args()
@@ -81,7 +82,7 @@ for kind, s, e in labs:
     si, ei = int(s * sr), int(e * sr)
     if kind == "breath":
         pad = int(a.pad * sr)
-        env = np.minimum(env, dip_env(n, si - pad, ei + pad, 10 ** (a.breath_db / 20), int(a.ramp * sr), int(a.ramp_up * sr)))
+        env = np.minimum(env, dip_env(n, si - pad, ei + pad - int(a.lead * sr), 10 ** (a.breath_db / 20), int(a.ramp * sr), int(a.ramp_up * sr)))
     elif kind == "dead":
         env = np.minimum(env, dip_env(n, si, ei, 0.0, int(a.ramp * sr), int(a.ramp_up * sr)))
     elif kind == "smack":
